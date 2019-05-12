@@ -81,6 +81,18 @@ die() {
 }
 
 
+add-user() {
+    local user="$1"
+    local shell="$2"
+    local groups="$3"
+    groups=$(echo "${groups//:/ }" | xargs)
+
+    echo "Adding user ${user}"
+    echo "    Shell: ${shell}"
+    echo "    Groups: ${groups}"
+}
+
+
 test-args() {
     case "${1}" in
         -h | --help)
@@ -100,16 +112,19 @@ test-args() {
             --full)
                 METHODS=":full:"
                 shift 1
-            ;; --users)
+                ;;
+            --users)
                 [[ ${METHODS} != ":full:" ]] && METHODS="${METHODS}users:"
                 shift 1
-            ;; --packages)
+                ;;
+            --packages)
                 [[ ${METHODS} != ":full:" ]] && METHODS="${METHODS}packages:"
                 shift 1
-            ;; --aur-packages)
+                ;;
+            --aur-packages)
                 [[ ${METHODS} != ":full:" ]] && METHODS="${METHODS}aur-packages:"
                 shift 1
-            ;;
+                ;;
         esac
     done
 
@@ -156,8 +171,6 @@ setup-users() {
         user_shell="bash"
         user_groups=""
     }
-
-    reset-user-options
 
     prepare-state() {
         next_state="$1"
@@ -213,6 +226,7 @@ setup-users() {
         if [[ -z "${expected}" ]]
         then
             prepare-state "user-def"
+            reset-user-options
             user="${token}"
             return
         fi
@@ -229,53 +243,74 @@ setup-users() {
             return
         fi
 
-        case "${substate}" in
+        case "${sub_state}" in
             groups)
+                case "${token}" in
+                    \})
+                        user_groups="${user_groups}:"
+                        sub_state="none"
+                        expected=""
+                        echo "${user} will be added to groups ${user_groups}"
+                        ;;
+                    *)
+                        user_groups="${user_groups}:${token}"
+                        ;;
+                esac
+                return
                 ;;
             none)
-                if [[ "${token}" == "${expected}" ]]
-                then
-                    case "${expected}" in
-                        =)
-                            echo "option: ${option}"
-                            case "${option}" in
-                                groups)
-                                    expected="{"
-                                    ;;
-                                "")
-                                    echo "no option yet"
-                                    ;;
-                                *)
-                                    expected="${NAMEREGEX}"
-                                    return
-                                    ;;
-                            esac
-                            ;;
-                        "{")
-                            sub_state="groups"
-                            expected="${NAMEREGEX}|}"
-                            ;;
-                        @(${NAMEREGEX}) )
-                            echo "Hehe"
-                            ;;
-                    esac
-                else
-                    if [[ "${token}" =~ ${expected} ]]
-                    then
-                        eval "user_${option}=${token}"
-                        expected=""
-                        echo "Set option '${option}' to '${token}'"
-                        return
-                    fi
-                    show-error "Syntax-error: expected ${expected}, found ${token}."\
-                        && die
-                fi
-                ;;
+                case "${token}" in
+                    \})
+                        add-user "${user}" \
+                            "${user_shell}" \
+                            "${user_groups}"
+
+                        next_state="users"
+                        advance-state
+                        ;;
+                    ${expected})
+                        case "${expected}" in
+                            =)
+                                case "${option}" in
+                                    groups)
+                                        expected="{"
+                                        ;;
+                                    "")
+                                        echo "no option yet"
+                                        ;;
+                                    *)
+                                        expected="${NAMEREGEX}"
+                                        ;;
+                                esac
+                                ;;
+                            "{")
+                                sub_state="${option}"
+                                ;;
+                            *)
+                                echo "Hehe"
+                                ;;
+                        esac
+                        ;;
+                    *)
+                        if [[ "${token}" =~ ${expected} ]]
+                        then
+                            eval "user_${option}=${token}"
+                            expected=""
+                            echo "Set option '${option}' to '${token}'"
+                            return
+                        fi
+                        show-error "Syntax-error."
+                        echo "    Expected ${expected}, found ${token}."
+                        die
+                    ;;
+            esac
         esac
     }
 
 
     # Read the whole file
+    reset-user-options
+
     while read -r line
     do
         for token in ${line}
