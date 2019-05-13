@@ -1,0 +1,16 @@
+[users.jptiz]
+shell = 'zsh'
+groups = [
+    'wheel',
+    'audio',
+]
+
+[packages]
+common = [
+    'ttf-fira-sans',
+]
+
+aur-helper = 'pikaur'
+aur = [
+    'ttf-zilla-slab',
+]

@@ -1,0 +1,11 @@
+[tool.poetry]
+name = "reginstall"
+version = "0.1.0"
+description = "Register packages/users for easy setup in new computers."
+authors = ["João Paulo Taylor Ienczak Zanette <jpaulotiz@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "3.7"
+toml = "^0.10.0"
+
+[tool.poetry.dev-dependencies]
