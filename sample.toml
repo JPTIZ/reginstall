@@ -5,12 +5,17 @@ groups = [
     'audio',
 ]
 
-[packages]
-common = [
+
+[packages.pacman]
+flags = "-S"
+pkglist = [
     'ttf-fira-sans',
 ]
 
-aur-helper = 'pikaur'
-aur = [
+
+[packages.pikaur]
+from-aur = true
+flags = "-S"
+pkglist = [
     'ttf-zilla-slab',
 ]
