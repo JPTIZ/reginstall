@@ -1,0 +1,12 @@
+[package]
+name = "reginstall"
+version = "0.1.0"
+authors = ["João Paulo Taylor Ienczak Zanette <jpaulotiz@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+toml = "0.5"
+serde = { version = "*", features = ["derive"] }
+rpassword = "3.0.2"

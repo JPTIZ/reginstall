@@ -1,5 +1,14 @@
 [users.jptiz]
 shell = 'zsh'
+comment = 'Tiz'
+groups = [
+    'wheel',
+    'audio',
+]
+
+[users.tarcisioe]
+shell = 'zsh'
+comment = 'Não é o Tarcísio'
 groups = [
     'wheel',
     'audio',
