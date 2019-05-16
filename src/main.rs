@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::process::{exit, Command};
+use std::io;
+use std::process::{exit, Command, Output};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,11 +14,18 @@ struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Config {
-    users: Option<HashMap<String, User>>,
+struct PackageList {
+    flags: Option<String>,
+    pkglist: Option<Vec<String>>,
 }
 
-fn add_user(username: &str, user: &User) {
+#[derive(Serialize, Deserialize, Debug)]
+struct Config {
+    users: Option<HashMap<String, User>>,
+    packages: Option<HashMap<String, PackageList>>,
+}
+
+fn add_user(username: &str, user: &User) -> Result<Output, io::Error> {
     let mut args = Vec::new();
 
     if let Some(shell) = &user.shell {
@@ -37,13 +45,36 @@ fn add_user(username: &str, user: &User) {
 
     args.push(username.to_owned());
 
-    match Command::new("useradd").args(args).output() {
+    Command::new("useradd").args(args).output()
+}
+
+fn install_packages(manager: &str, packages: &PackageList) -> Result<Output, io::Error> {
+    let flags = match &packages.flags {
+        Some(f) => f.split(" ").collect::<Vec<_>>(),
+        None => vec![],
+    };
+
+    let default = vec![];
+
+    let pkglist = *(&packages.pkglist.as_ref().unwrap_or(&default));
+
+    Command::new(manager).args(flags).args(pkglist).output()
+}
+
+fn run_or_die(result: Result<Output, io::Error>) {
+    match result {
         Ok(output) => {
-            println!("StdOut: {:?}", String::from_utf8_lossy(&output.stdout));
-            println!("StdErr: {:?}", String::from_utf8_lossy(&output.stderr));
+            if !&output.stderr.is_empty() {
+                println!(" Error: {}", String::from_utf8_lossy(&output.stderr).trim());
+                return;
+            }
+            println!(
+                "Done. Output:\n{:?}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         Err(err) => {
-            println!("Failed to create user: {:?}", err);
+            println!("Failed: {:?}", err);
         }
     }
 }
@@ -63,7 +94,12 @@ fn main() {
     println!("decoded: {:#?}", decoded);
 
     for (username, user) in decoded.users.iter().flatten() {
-        println!("User {}: {:?}", username, user);
-        add_user(username, user);
+        print!("Creating user {}...", username);
+        run_or_die(add_user(username, user));
+    }
+
+    for (manager, packages) in decoded.packages.iter().flatten() {
+        println!("Package manager {}: {:?}", manager, packages);
+        run_or_die(install_packages(manager, packages));
     }
 }
