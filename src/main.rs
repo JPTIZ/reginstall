@@ -5,13 +5,10 @@ use std::io;
 use std::process::{exit, Command, Output};
 
 use serde::{Deserialize, Serialize};
+use clap::{App, SubCommand};
 
-#[derive(Serialize, Deserialize, Debug)]
-struct User {
-    shell: Option<String>,
-    comment: Option<String>,
-    groups: Option<Vec<String>>,
-}
+mod users;
+use users::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PackageList {
@@ -23,29 +20,6 @@ struct PackageList {
 struct Config {
     users: Option<HashMap<String, User>>,
     packages: Option<HashMap<String, PackageList>>,
-}
-
-fn add_user(username: &str, user: &User) -> Result<Output, io::Error> {
-    let mut args = Vec::new();
-
-    if let Some(shell) = &user.shell {
-        args.push("--shell".to_owned());
-        args.push("/usr/bin/".to_owned() + shell);
-    }
-
-    if let Some(comment) = &user.comment {
-        args.push("-c".to_owned());
-        args.push(comment.to_owned());
-    }
-
-    if let Some(groups) = &user.groups {
-        args.push("--groups".to_owned());
-        args.push(groups.join(","));
-    }
-
-    args.push(username.to_owned());
-
-    Command::new("useradd").args(args).output()
 }
 
 fn install_packages(manager: &str, packages: &PackageList) -> Result<Output, io::Error> {
@@ -80,26 +54,41 @@ fn run_or_die(result: Result<Output, io::Error>) {
 }
 
 fn main() {
-    match env::var("USER") {
-        Ok(ref val) if val == "root" => {
-            println!("Running as root. At your own risk.");
+    let matches = App::new("reginstall")
+                    .version("0.2.0")
+                    .author("João Paulo Taylor Ienczak Zanette <jpaulotiz@gmail.com>")
+                    .about("Manages basic setup for easier machine switching.")
+                    .subcommand(SubCommand::with_name("setup")
+                            .about("Makes full setup from reginstall config file.")
+                            .arg_from_usage("<FILE> 'reginstall config file'."))
+                    .get_matches();
+
+    if let Some(matches) = matches.subcommand_matches("setup") {
+        println!("Running setup command with file \"{}\"", matches.value_of("FILE").unwrap());
+
+        match env::var("USER") {
+            Ok(ref val) if val == "root" => {
+                println!("Running as root. At your own risk.");
+            }
+            _ => {
+                eprintln!("Must run as root/sudo.");
+                exit(1);
+            }
         }
-        _ => {
-            eprintln!("Must run as root/sudo.");
-            exit(1);
+
+        let decoded: Config = toml::from_str(&fs::read_to_string("sample.toml").unwrap()).unwrap();
+        println!("decoded: {:#?}", decoded);
+
+        for (username, user) in decoded.users.iter().flatten() {
+            print!("Creating user {}...", username);
+            run_or_die(add_user(username, user));
         }
-    }
 
-    let decoded: Config = toml::from_str(&fs::read_to_string("sample.toml").unwrap()).unwrap();
-    println!("decoded: {:#?}", decoded);
-
-    for (username, user) in decoded.users.iter().flatten() {
-        print!("Creating user {}...", username);
-        run_or_die(add_user(username, user));
-    }
-
-    for (manager, packages) in decoded.packages.iter().flatten() {
-        println!("Package manager {}: {:?}", manager, packages);
-        run_or_die(install_packages(manager, packages));
+        for (manager, packages) in decoded.packages.iter().flatten() {
+            println!("Package manager {}: {:?}", manager, packages);
+            run_or_die(install_packages(manager, packages));
+        }
+    } else {
+        println!("Subcommand needed!");
     }
 }
